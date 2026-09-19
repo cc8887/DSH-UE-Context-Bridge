@@ -37,6 +37,76 @@ See [docs/setup.md](docs/setup.md) for the editor-side configuration, which
 needs two non-obvious settings: `bAutoStartServer=True` (nothing listens without
 it) and `bEnableToolSearch=False` (otherwise only three meta-tools are exposed).
 
+## Why this instead of wiring UE MCP in directly
+
+The editor's MCP plugin is the right transport. What it does not solve is what
+happens when a model is handed the whole tool library at once. These are the
+specific things this bridge does about it, and each one points at the code that
+implements it.
+
+**The tool surface stays at two or three.** Model-facing shapes are frozen at
+registration and never vary with catalog contents, project or engine build, so
+the tool prefix a client sees is stable across sessions. Everything else stays
+behind `ue_find`.
+
+**Discovery is local and deterministic.** `ue_find` scores the catalog inside
+the gateway, weighting exact tool id, then method name, then toolset, then
+keyword. There is no LLM query rewrite and no extra model call per search, so
+retrieval costs no tokens beyond the query and the hits.
+
+**The engine and the editor are resolved, not guessed.** Which engine a project
+builds against is a human decision: it is asked once per project, remembered by
+project root, and never silently switched. A confident resolution is used and
+reported, and only an ambiguous one asks again. Lifecycle tools take an intent
+(get the editor usable) instead of one tool per operation, so "start" can mean
+build, launch or both without the model knowing which.
+
+**Approval and identity stay with the host.** The gateway is a child process
+acting as a UE MCP client, not another MCP server in the model's path, so tool
+names, return shapes and mode isolation remain host-controlled. Call identity is
+bound by the host and the model never supplies a trusted identity field. Effect
+class comes from adapter rules or manual review, never from a tool's name, a
+model's self-report, or an unverified MCP annotation. An approval is bound to
+the argument digest, project, editor epoch and adapter version, so it cannot be
+reused for a different operation, and with no approval channel a privileged call
+is refused rather than allowed by default.
+
+**Failure is a first-class answer.** Execution, verification and persistence are
+reported as three separate facts, so "the call returned" is never presented as
+"the asset was saved". Every error carries an explicit retry policy. A write
+that landed in an unknown state is never auto-replayed, and the single-editor
+write lock is not released merely because a client timed out.
+
+**Large results collapse instead of flooding context.** An oversized payload is
+reduced to a small canonical value carrying the byte count and a `result_id`;
+full content is read back through the artifact store with a cursor. That is real
+pagination rather than a text tail cut, and truncation is always reported.
+
+**Nothing is added to the UE side.** The upstream MCP plugin and the engine tree
+are treated as read-only. Python mode reaches the editor through the engine's
+own remote-execution protocol rather than by adding a plugin, so upgrading the
+engine or switching projects leaves no patch to re-apply and no forked plugin to
+maintain.
+
+Each claim above is implemented somewhere specific, so it can be checked rather
+than taken on trust:
+
+| Claim | Where |
+| --- | --- |
+| Frozen model-facing shapes | [model-tools.ts](packages/contracts/src/model-tools.ts) |
+| Local deterministic scoring | [catalog.ts](packages/gateway/src/catalog/catalog.ts) |
+| Engine decided once per project | [engine-selection.ts](packages/dsh-plugin/src/engine-selection.ts) |
+| Host-bound identity, effect class, approval digest | [approval.ts](packages/dsh-plugin/src/approval.ts) |
+| Execution / verification / persistence as separate facts, retry policy | [model-tools.ts](packages/contracts/src/model-tools.ts) |
+| Write lock held through unknown outcomes | [ledger.ts](packages/gateway/src/execution/ledger.ts) |
+| Byte budgets and cursor pagination | [results.ts](packages/contracts/src/results.ts) |
+
+Each of these has a boundary, and the boundaries are part of the contract in
+[docs/limitations.md](docs/limitations.md). A stable prefix improves the
+conditions for cache reuse without guaranteeing a server-side hit. One Python
+tool is not a smaller permission set and is not a sandbox. Trimming results
+locally does not reduce UE-side memory or transport cost.
+
 ## Repository layout
 
 ```text
