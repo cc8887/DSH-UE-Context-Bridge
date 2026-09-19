@@ -1,0 +1,29 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+*.log
+
+# Local runtime state: invocation ledger, catalogs, artifacts
+.state/
+fixtures/contracts/*/raw/
+!fixtures/contracts/*/raw/.gitkeep
+
+# Secrets must never enter the repo
+.env
+*.key
+.credentials.yaml
+.npmrc
+
+# UE project generated artifacts
+ue-project/Intermediate/
+ue-project/Saved/
+ue-project/Binaries/
+ue-project/DerivedDataCache/
+.state/
+
+ue-project/Plugins/DshPythonBridgeToolset/Content/debug.log
+
+__pycache__/
+*.pyc
+

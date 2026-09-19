@@ -1,0 +1,10 @@
+{
+  "engine_build": "P0_PENDING",
+  "dsh_commit": "P0_PENDING",
+  "mcp_protocol": "P0_PENDING",
+  "project_fingerprint": "P0_PENDING",
+  "adapter_version": "0.1.0",
+  "python_bridge_version": "0.1.0",
+  "execution_binding_fixture": "P0_PENDING",
+  "_warning": "Placeholder values are not a valid compatibility claim. Fill each field from a recorded P0 fixture before publishing any support statement."
+}

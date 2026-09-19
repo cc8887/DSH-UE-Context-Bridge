@@ -1,0 +1,14 @@
+{
+  "name": "@ue-bridge/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/main.ts",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@ue-bridge/contracts": "0.1.0"
+  },
+  "scripts": {
+    "start": "node --experimental-strip-types src/main.ts"
+  }
+}

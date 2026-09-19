@@ -1,0 +1,22 @@
+# ue-deferred preset (plan section 1)
+
+name: ue-deferred
+description: >-
+  Unreal Engine deferred mode. The model sees exactly two UE entry points:
+  ue_find and ue_python discovery via ue_find, then ue_call for invocation.
+mode: deferred
+
+# Native presentation only. PTC SDK generation is never used in v0.1, so the
+# announced tool surface equals the callable surface.
+presentation: native
+
+# The preset inherits no shell and no raw UE MCP tools.
+inherits_global_tools: false
+
+ue_tools:
+  - ue_find
+  - ue_call
+
+# High-privilege operations are denied when no approval channel exists,
+# rather than silently permitted.
+approval_channel_required: true

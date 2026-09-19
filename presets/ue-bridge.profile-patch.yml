@@ -1,0 +1,38 @@
+# Patch layer for the ue-bridge profile.
+#
+# Model route only. The `ue-bridge` plugin entry is declared in cordis.yml
+# (a patch cannot create a new entry), so it is not repeated here.
+
+# Patch layer for the ue-bridge profile.
+#
+# Model route only. The `ue-bridge` plugin entry is declared in cordis.yml
+# (a patch cannot create a new entry), so it is not repeated here.
+#
+# The provider below is a template. Point it at whichever OpenAI-compatible
+# endpoint you use and set the matching environment variable in your local
+# config; nothing here is specific to one vendor.
+
+- id: llm-pi-ai
+  config:
+    providers:
+      openai-compat:
+        displayName: OpenAI-Compatible
+        apiKeyEnv: UE_BRIDGE_LLM_API_KEY
+        api: openai-completions
+        baseURL: https://your-llm-endpoint.example.com/v1
+        models:
+          - id: your-fast-model
+            name: Your Fast Model
+            contextWindow: 200000
+            maxTokens: 65536
+            input: [text, image]
+          - id: your-strong-model
+            name: Your Strong Model
+            contextWindow: 200000
+            maxTokens: 128000
+            input: [text, image]
+
+- id: agent-default-model
+  config:
+    provider: openai-compat
+    model: your-strong-model

@@ -1,0 +1,16 @@
+# UE Context Bridge plugin layer.
+#
+# Mount by passing this file to dsh with --patch, or merge it into a profile's
+# cordis.patch.yml. `name` is a module path resolved by the cordis loader.
+
+- id: ue-bridge
+  # Absolute path to your clone. Replace before use.
+  name: /path/to/dsh-ue-context-bridge/packages/dsh-plugin/apply.ts
+  config:
+    preset: ue-deferred
+    gatewayCommand: node
+    gatewayArgs:
+      - --experimental-strip-types
+      - packages/gateway/src/main.ts
+    gatewayCwd: /path/to/dsh-ue-context-bridge
+    approvalChannelAvailable: false

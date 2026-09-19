@@ -1,0 +1,17 @@
+{
+  "name": "@ue-bridge/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
+    "./model-tools": { "types": "./src/model-tools.ts", "default": "./src/model-tools.ts" },
+    "./ipc": { "types": "./src/ipc.ts", "default": "./src/ipc.ts" },
+    "./results": { "types": "./src/results.ts", "default": "./src/results.ts" }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

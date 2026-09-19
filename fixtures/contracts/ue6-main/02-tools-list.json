@@ -1,0 +1,954 @@
+{
+  "endpoint": "http://127.0.0.1:8000/mcp",
+  "captured_at": "2026-09-17T12:53:16.869Z",
+  "tools": [
+    {
+      "name": "ToolsetRegistry.AgentSkillToolset.UpdateSkill",
+      "description": "更新现有AgentSkill。\n这应该只在获得用户的明确指示或许可后才调用。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "skillPath": {
+            "type": "string",
+            "description": "要修改的技能的完整路径，即/Game/Skills/MySkill.MySkill_C。"
+          },
+          "description": {
+            "type": "string",
+            "description": "技能的简要描述。"
+          },
+          "details": {
+            "title": "AgentSkillDetails",
+            "description": "关于如何使用技能的详细信息。",
+            "type": "object",
+            "properties": {
+              "instructions": {
+                "type": "string",
+                "description": "有关如何使用该技能的详细信息。"
+              }
+            },
+            "required": [
+              "instructions"
+            ]
+          }
+        },
+        "required": [
+          "skillPath",
+          "description",
+          "details"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "returnValue": {
+            "type": "boolean",
+            "description": "如果技能已更新，则返回true。"
+          }
+        },
+        "required": [
+          "returnValue"
+        ]
+      }
+    },
+    {
+      "name": "ToolsetRegistry.AgentSkillToolset.ListSkills",
+      "description": "获取项目中所有AgentSkills的摘要。",
+      "inputSchema": {
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "returnValue": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "返回一个字典，其中键是技能路径，值是描述。"
+          }
+        },
+        "required": [
+          "returnValue"
+        ]
+      }
+    },
+    {
+      "name": "ToolsetRegistry.AgentSkillToolset.GetSkills",
+      "description": "返回关于特定AgentSkills集的详细信息。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "skillPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "要检索的AgentSkills的路径列表。"
+          }
+        },
+        "required": [
+          "skillPaths"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "returnValue": {
+            "type": "object",
+            "additionalProperties": {
+              "title": "AgentSkillDetails",
+              "type": "object",
+              "properties": {
+                "instructions": {
+                  "type": "string",
+                  "description": "有关如何使用该技能的详细信息。"
+                }
+              },
+              "required": [
+                "instructions"
+              ]
+            },
+            "description": "字典，其中键是技能路径，值是详细信息。"
+          }
+        },
+        "required": [
+          "returnValue"
+        ]
+      }
+    },
+    {
+      "name": "ToolsetRegistry.AgentSkillToolset.CreateSkill",
+      "description": "创建一个新的AgentSkill。\n这应该只在获得用户的明确指示或许可后才调用。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "folderPath": {
+            "type": "string",
+            "description": "在其中创建技能的文件夹。即/Game/Skills/。"
+          },
+          "assetName": {
+            "type": "string",
+            "description": "要创建的技能的名称，即MySkill。"
+          },
+          "description": {
+            "type": "string",
+            "description": "技能的简要描述。"
+          },
+          "details": {
+            "title": "AgentSkillDetails",
+            "description": "关于如何使用技能的详细信息。",
+            "type": "object",
+            "properties": {
+              "instructions": {
+                "type": "string",
+                "description": "有关如何使用该技能的详细信息。"
+              }
+            },
+            "required": [
+              "instructions"
+            ]
+          }
+        },
+        "required": [
+          "folderPath",
+          "assetName",
+          "description",
+          "details"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "returnValue": {
+            "type": "string",
+            "description": "创建的技能类的路径。如果不成功，则为空。"
+          }
+        },
+        "required": [
+          "returnValue"
+        ]
+      }
+    },
+    {
+      "name": "CrashDiagnosticsToolset.CrashDiagnosticsToolset.GetRecentCrashes",
+      "description": "Returns summaries of recent Unreal Editor crashes from previous sessions, sorted most-recent-first.\nDoes not include ensures - crashes only.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "numberToRetrieve": {
+            "type": "integer",
+            "description": "Maximum number of summaries to return. Pass 0 or a negative value for no limit.",
+            "default": 10
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "returnValue": {
+            "type": "array",
+            "items": {
+              "title": "EditorCrashSummary",
+              "type": "object",
+              "properties": {
+                "crashGUId": {
+                  "type": "string",
+                  "description": "Unique identifier for this crash."
+                },
+                "timeOfCrash": {
+                  "type": "string",
+                  "description": "Time of the crash as \"<local> (UTC: <utc>)\". The local half uses the editor's timezone, not the crash origin's."
+                },
+                "errorMessage": {
+                  "type": "string",
+                  "description": "The error message of the crash."
+                },
+                "crashType": {
+                  "type": "string",
+                  "description": "The type of crash."
+                }
+              },
+              "required": [
+                "crashGUId",
+                "timeOfCrash",
+                "errorMessage",
+                "crashType"
+              ]
+            },
+            "description": "The crash summaries, most recent first."
+          }
+        },
+        "required": [
+          "returnValue"
+        ]
+      }
+    },
+    {
+      "name": "CrashDiagnosticsToolset.CrashDiagnosticsToolset.GetCrashDetails",
+      "description": "Returns the full details of a specific crash by its GUID.\nUse this after obtaining a summary from GetRecentCrashes.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "crashGUId": {
+            "type": "string",
+            "description": "The crash GUID to look up."
+          }
+        },
+        "required": [
+          "crashGUId"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "returnValue": {
+            "description": "The crash details, or an unset optional if no crash matches the GUID.",
+            "title": "EditorCrashDetails",
+            "type": "object",
+            "properties": {
+              "callStack": {
+                "type": "string",
+                "description": "The call stack at the time of the crash."
+              },
+              "userActivityHint": {
+                "type": "string",
+                "description": "Hint over what the user was doing at the time of the crash. Can be empty."
+              },
+              "sourceContext": {
+                "type": "string",
+                "description": "Part of the code that triggered the crash. Can be empty."
+              },
+              "crashLogPath": {
+                "type": "string",
+                "description": "Path to the crash log file on disk. Pass it as LogFilePath to the Logs toolset's GetLogEntries to read the log. Can be empty."
+              },
+              "crashGUId": {
+                "type": "string",
+                "description": "Unique identifier for this crash."
+              },
+              "timeOfCrash": {
+                "type": "string",
+                "description": "Time of the crash as \"<local> (UTC: <utc>)\". The local half uses the editor's timezone, not the crash origin's."
+              },
+              "errorMessage": {
+                "type": "string",
+                "description": "The error message of the crash."
+              },
+              "crashType": {
+                "type": "string",
+                "description": "The type of crash."
+              }
+            },
+            "required": [
+              "callStack",
+              "userActivityHint",
+              "sourceContext",
+              "crashLogPath",
+              "crashGUId",
+              "timeOfCrash",
+              "errorMessage",
+              "crashType"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "geometry_toolset.geometry_ops.GeometryTools.append_disc",
+      "description": "Appends a flat disc to the component's mesh.\n\n        Args:\n            component: Target DynamicMeshComponent.\n            transform: The primitive transform in the mesh's local space.\n            radius: Disc radius in Unreal units.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "object",
+            "title": "/Script/GeometryFramework.DynamicMeshComponent",
+            "description": "代表对UObject或UClass的引用。",
+            "properties": {
+              "refPath": {
+                "type": "string",
+                "description": "存储为软路径字符串的引用。"
+              }
+            },
+            "required": [
+              "refPath"
+            ]
+          },
+          "transform": {
+            "type": "object",
+            "title": "ToolsetTransform",
+            "description": "表示带有可选位置、旋转和缩放的3D变换。\n未设置的字段在创建Object时表示“使用默认/恒等值”，在修改现有Object时表示“保持不变”。",
+            "properties": {
+              "location": {
+                "description": "世界空间位置。",
+                "title": "Vector",
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "rotation": {
+                "description": "世界空间旋转。",
+                "title": "Rotator",
+                "type": "object",
+                "properties": {
+                  "pitch": {
+                    "type": "number",
+                    "description": "绕Y轴的Pitch（角度）"
+                  },
+                  "yaw": {
+                    "type": "number",
+                    "description": "绕Z轴的Yaw（角度）"
+                  },
+                  "roll": {
+                    "type": "number",
+                    "description": "绕X轴的Roll（角度）"
+                  }
+                },
+                "required": [
+                  "pitch",
+                  "yaw",
+                  "roll"
+                ]
+              },
+              "scale": {
+                "description": "缩放。",
+                "title": "Vector",
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              }
+            }
+          },
+          "radius": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "component",
+          "transform",
+          "radius"
+        ]
+      }
+    },
+    {
+      "name": "geometry_toolset.geometry_ops.GeometryTools.append_torus",
+      "description": "Appends a torus to the component's mesh.\n\n        Args:\n            component: Target DynamicMeshComponent.\n            transform: The primitive transform in the mesh's local space.\n            major_radius: Distance from the torus centre to the centre of\n                the tube, in Unreal units.\n            minor_radius: Radius of the tube cross-section, in Unreal units.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "object",
+            "title": "/Script/GeometryFramework.DynamicMeshComponent",
+            "description": "代表对UObject或UClass的引用。",
+            "properties": {
+              "refPath": {
+                "type": "string",
+                "description": "存储为软路径字符串的引用。"
+              }
+            },
+            "required": [
+              "refPath"
+            ]
+          },
+          "transform": {
+            "type": "object",
+            "title": "ToolsetTransform",
+            "description": "表示带有可选位置、旋转和缩放的3D变换。\n未设置的字段在创建Object时表示“使用默认/恒等值”，在修改现有Object时表示“保持不变”。",
+            "properties": {
+              "location": {
+                "description": "世界空间位置。",
+                "title": "Vector",
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "rotation": {
+                "description": "世界空间旋转。",
+                "title": "Rotator",
+                "type": "object",
+                "properties": {
+                  "pitch": {
+                    "type": "number",
+                    "description": "绕Y轴的Pitch（角度）"
+                  },
+                  "yaw": {
+                    "type": "number",
+                    "description": "绕Z轴的Yaw（角度）"
+                  },
+                  "roll": {
+                    "type": "number",
+                    "description": "绕X轴的Roll（角度）"
+                  }
+                },
+                "required": [
+                  "pitch",
+                  "yaw",
+                  "roll"
+                ]
+              },
+              "scale": {
+                "description": "缩放。",
+                "title": "Vector",
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              }
+            }
+          },
+          "major_radius": {
+            "type": "number"
+          },
+          "minor_radius": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "component",
+          "transform",
+          "major_radius",
+          "minor_radius"
+        ]
+      }
+    },
+    {
+      "name": "geometry_toolset.geometry_ops.GeometryTools.append_cone",
+      "description": "Appends a cone (or truncated cone) to the component's mesh.\n\n        Args:\n            component: Target DynamicMeshComponent.\n            transform: The primitive transform in the mesh's local space.\n            base_radius: Radius at the base of the cone in Unreal units.\n            top_radius: Radius at the top of the cone in Unreal units. Set\n                to 0 for a pointed cone; positive values produce a\n                truncated cone (frustum).\n            height: Cone height along the local +Z axis in Unreal units.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "object",
+            "title": "/Script/GeometryFramework.DynamicMeshComponent",
+            "description": "代表对UObject或UClass的引用。",
+            "properties": {
+              "refPath": {
+                "type": "string",
+                "description": "存储为软路径字符串的引用。"
+              }
+            },
+            "required": [
+              "refPath"
+            ]
+          },
+          "transform": {
+            "type": "object",
+            "title": "ToolsetTransform",
+            "description": "表示带有可选位置、旋转和缩放的3D变换。\n未设置的字段在创建Object时表示“使用默认/恒等值”，在修改现有Object时表示“保持不变”。",
+            "properties": {
+              "location": {
+                "description": "世界空间位置。",
+                "title": "Vector",
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "rotation": {
+                "description": "世界空间旋转。",
+                "title": "Rotator",
+                "type": "object",
+                "properties": {
+                  "pitch": {
+                    "type": "number",
+                    "description": "绕Y轴的Pitch（角度）"
+                  },
+                  "yaw": {
+                    "type": "number",
+                    "description": "绕Z轴的Yaw（角度）"
+                  },
+                  "roll": {
+                    "type": "number",
+                    "description": "绕X轴的Roll（角度）"
+                  }
+                },
+                "required": [
+                  "pitch",
+                  "yaw",
+                  "roll"
+                ]
+              },
+              "scale": {
+                "description": "缩放。",
+                "title": "Vector",
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              }
+            }
+          },
+          "base_radius": {
+            "type": "number"
+          },
+          "top_radius": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "component",
+          "transform",
+          "base_radius",
+          "top_radius",
+          "height"
+        ]
+      }
+    },
+    {
+      "name": "geometry_toolset.geometry_ops.GeometryTools.append_sphere",
+      "description": "Appends a sphere of the given radius to the component's mesh.\n\n        Args:\n            component: Target DynamicMeshComponent.\n            transform: The primitive transform in the mesh's local space.\n            radius: Sphere radius in Unreal units.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "object",
+            "title": "/Script/GeometryFramework.DynamicMeshComponent",
+            "description": "代表对UObject或UClass的引用。",
+            "properties": {
+              "refPath": {
+                "type": "string",
+                "description": "存储为软路径字符串的引用。"
+              }
+            },
+            "required": [
+              "refPath"
+            ]
+          },
+          "transform": {
+            "type": "object",
+            "title": "ToolsetTransform",
+            "description": "表示带有可选位置、旋转和缩放的3D变换。\n未设置的字段在创建Object时表示“使用默认/恒等值”，在修改现有Object时表示“保持不变”。",
+            "properties": {
+              "location": {
+                "description": "世界空间位置。",
+                "title": "Vector",
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "rotation": {
+                "description": "世界空间旋转。",
+                "title": "Rotator",
+                "type": "object",
+                "properties": {
+                  "pitch": {
+                    "type": "number",
+                    "description": "绕Y轴的Pitch（角度）"
+                  },
+                  "yaw": {
+                    "type": "number",
+                    "description": "绕Z轴的Yaw（角度）"
+                  },
+                  "roll": {
+                    "type": "number",
+                    "description": "绕X轴的Roll（角度）"
+                  }
+                },
+                "required": [
+                  "pitch",
+                  "yaw",
+                  "roll"
+                ]
+              },
+              "scale": {
+                "description": "缩放。",
+                "title": "Vector",
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              }
+            }
+          },
+          "radius": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "component",
+          "transform",
+          "radius"
+        ]
+      }
+    },
+    {
+      "name": "geometry_toolset.geometry_ops.GeometryTools.append_cylinder",
+      "description": "Appends a cylinder of the given radius and height to the component's mesh.\n\n        Args:\n            component: Target DynamicMeshComponent.\n            transform: The primitive transform in the mesh's local space.\n            radius: Cylinder radius in Unreal units.\n            height: Cylinder height along the local +Z axis in Unreal units.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "object",
+            "title": "/Script/GeometryFramework.DynamicMeshComponent",
+            "description": "代表对UObject或UClass的引用。",
+            "properties": {
+              "refPath": {
+                "type": "string",
+                "description": "存储为软路径字符串的引用。"
+              }
+            },
+            "required": [
+              "refPath"
+            ]
+          },
+          "transform": {
+            "type": "object",
+            "title": "ToolsetTransform",
+            "description": "表示带有可选位置、旋转和缩放的3D变换。\n未设置的字段在创建Object时表示“使用默认/恒等值”，在修改现有Object时表示“保持不变”。",
+            "properties": {
+              "location": {
+                "description": "世界空间位置。",
+                "title": "Vector",
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "rotation": {
+                "description": "世界空间旋转。",
+                "title": "Rotator",
+                "type": "object",
+                "properties": {
+                  "pitch": {
+                    "type": "number",
+                    "description": "绕Y轴的Pitch（角度）"
+                  },
+                  "yaw": {
+                    "type": "number",
+                    "description": "绕Z轴的Yaw（角度）"
+                  },
+                  "roll": {
+                    "type": "number",
+                    "description": "绕X轴的Roll（角度）"
+                  }
+                },
+                "required": [
+                  "pitch",
+                  "yaw",
+                  "roll"
+                ]
+              },
+              "scale": {
+                "description": "缩放。",
+                "title": "Vector",
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              }
+            }
+          },
+          "radius": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "component",
+          "transform",
+          "radius",
+          "height"
+        ]
+      }
+    },
+    {
+      "name": "geometry_toolset.geometry_ops.GeometryTools.append_box",
+      "description": "Appends a box of the given dimensions to the component's mesh.\n\n        Args:\n            component: Target DynamicMeshComponent.\n            transform: The primitive transform in the mesh's local space.\n            dimensions: Box size along x, y, z in Unreal units.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "object",
+            "title": "/Script/GeometryFramework.DynamicMeshComponent",
+            "description": "代表对UObject或UClass的引用。",
+            "properties": {
+              "refPath": {
+                "type": "string",
+                "description": "存储为软路径字符串的引用。"
+              }
+            },
+            "required": [
+              "refPath"
+            ]
+          },
+          "transform": {
+            "type": "object",
+            "title": "ToolsetTransform",
+            "description": "表示带有可选位置、旋转和缩放的3D变换。\n未设置的字段在创建Object时表示“使用默认/恒等值”，在修改现有Object时表示“保持不变”。",
+            "properties": {
+              "location": {
+                "description": "世界空间位置。",
+                "title": "Vector",
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "rotation": {
+                "description": "世界空间旋转。",
+                "title": "Rotator",
+                "type": "object",
+                "properties": {
+                  "pitch": {
+                    "type": "number",
+                    "description": "绕Y轴的Pitch（角度）"
+                  },
+                  "yaw": {
+                    "type": "number",
+                    "description": "绕Z轴的Yaw（角度）"
+                  },
+                  "roll": {
+                    "type": "number",
+                    "description": "绕X轴的Roll（角度）"
+                  }
+                },
+                "required": [
+                  "pitch",
+                  "yaw",
+                  "roll"
+                ]
+              },
+              "scale": {
+                "description": "缩放。",
+                "title": "Vector",
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              }
+            }
+          },
+          "dimensions": {
+            "title": "Vector",
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "z": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "transform",
+          "dimensions"
+        ]
+      }
+    }
+  ]
+}

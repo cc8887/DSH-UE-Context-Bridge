@@ -1,0 +1,21 @@
+{
+  "name": "@ue-bridge/dsh-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-tools": "*"
+  },
+  "dependencies": {
+    "@ue-bridge/contracts": "0.1.0"
+  },
+  "dsh": {
+    "plugin": {
+      "kind": "tool-provider",
+      "presets": ["ue-deferred", "ue-python"]
+    }
+  }
+}

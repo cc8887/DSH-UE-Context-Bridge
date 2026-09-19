@@ -1,0 +1,26 @@
+{
+  "name": "dsh-ue-context-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "author": "yuchencui",
+  "description": "DSH x Unreal Engine context-efficient tool execution layer: drive a live editor through two or three model-visible tools instead of hundreds",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc -b packages/contracts && tsc -p packages/gateway && tsc -p packages/dsh-plugin",
+    "typecheck": "tsc -b packages/contracts && tsc -p packages/gateway",
+    "test": "node --test tests/unit/*.test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3",
+    "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "get-port": "^7.2.0"
+  }
+}

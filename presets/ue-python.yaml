@@ -1,0 +1,20 @@
+# ue-python preset (plan section 1, 7)
+
+name: ue-python
+description: >-
+  Unreal Engine python-only mode. The model sees exactly one UE entry point:
+  ue_python_execute. Discovery, filtering and batching all happen inside the
+  editor through the uex helper library.
+mode: python
+
+presentation: native
+inherits_global_tools: false
+
+ue_tools:
+  - ue_python_execute
+
+# Every script is reviewed before execution, including imports, loops and
+# arbitrary unreal.* calls. There is no read_only flag that pretends to
+# constrain Python permissions.
+approval_channel_required: true
+python_review: always
