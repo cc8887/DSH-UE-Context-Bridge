@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "author": "yuchencui",
+  "author": "cc8887",
   "description": "DSH x Unreal Engine context-efficient tool execution layer: drive a live editor through two or three model-visible tools instead of hundreds",
   "workspaces": [
     "packages/*"
