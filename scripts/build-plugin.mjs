@@ -24,6 +24,7 @@ function walk(dir) {
 
 rmSync(join(root, 'packages/contracts/dist'), { recursive: true, force: true });
 rmSync(join(root, 'packages/dsh-plugin/dist'), { recursive: true, force: true });
+rmSync(join(root, 'packages/gateway/dist'), { recursive: true, force: true });
 
 const npm = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
@@ -33,6 +34,7 @@ function tsc(project) {
 
 tsc('packages/contracts/tsconfig.build.json');
 tsc('packages/dsh-plugin/tsconfig.build.json');
+tsc('packages/gateway/tsconfig.build.json');
 
 // Both packages are compiled now. The contracts package.json is authored with
 // dist exports already, so it is left alone here.

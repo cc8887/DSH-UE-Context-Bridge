@@ -54,10 +54,51 @@ node scripts/deploy.mjs ue-bridge # install into the profile's node_modules
 `dsh.bundle.patch`, so `dsh plugin add` registers it automatically — no manual
 edit of the profile's `bundles` list.
 
+Install from a GitHub release:
+
 ```bash
-npm pack -w @ue-bridge/bundle     # or: pnpm pack, in packages/bundle
-dsh plugin --profile ue-bridge add ./ue-bridge-bundle-0.1.0.tgz
+dsh plugin --profile ue-bridge add \
+  https://github.com/cc8887/DSH-UE-Context-Bridge/releases/download/v0.1.0/ue-bridge-bundle-0.1.0.tgz \
+&& node scripts/install.mjs --profile ue-bridge
 ```
+
+Two commands, because `npm pack` always excludes a top-level `node_modules`
+and that is exactly what a self-contained artifact needs. So the release
+tarball carries the compiled plugin, contracts, and gateway as `packages/`,
+and `install.mjs` moves them to where Node will resolve them. Verified in an
+isolated `DSH_HOME`: after `add`, the profile manifest contained
+`"@ue-bridge/bundle"` with no manual step, and the gateway started and printed
+`gateway: ready (protocol 0.1.0)`.
+
+From a local build instead of a release URL:
+
+```bash
+node scripts/pack-release.mjs         # writes dist-release/ue-bridge-bundle-<version>.tgz
+dsh plugin --profile ue-bridge add ./dist-release/ue-bridge-bundle-0.1.0.tgz
+node scripts/install.mjs --profile ue-bridge
+```
+
+The gateway entry is **compiled JS**, not `packages/gateway/src/main.ts`. Node
+refuses to strip TypeScript types for files under `node_modules`
+(`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), which is where dsh installs
+profile plugins, so a TS entry would fail on every install.
+
+The patch carries **no absolute path**: `gatewayCwd` is resolved at runtime by
+`gateway-root.ts`, which finds the gateway by shape beside the plugin. Leave
+`gatewayCwd` unset unless you need to override that discovery.
+
+### 2b. Publishing a release
+
+```bash
+npm test
+node scripts/pack-release.mjs
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin master --tags
+```
+
+Then attach `dist-release/ue-bridge-bundle-<version>.tgz` to the GitHub
+release for that tag. `pack-release.mjs` refuses to produce a tarball missing
+the compiled gateway, so a patch-only artifact cannot be published by mistake.
 
 `dsh plugin` forwards to pnpm and then reconciles `dsh.profile.bundles` against
 the installed state: any dependency declaring `dsh.bundle` joins the layer

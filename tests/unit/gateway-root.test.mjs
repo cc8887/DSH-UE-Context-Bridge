@@ -67,6 +67,35 @@ test('returns undefined when no gateway is installed beside the plugin', () => {
   );
 });
 
+// A release install ships compiled JS, because Node refuses to strip types
+// under node_modules. That entry must win over the source one.
+test('prefers the compiled gateway entry when both exist', () => {
+  const root = mkdtempSync(join(tmpdir(), 'dsh-gw-both-'));
+  stageInstallLayout(root);
+  const gwRoot = join(root, 'node_modules', '@ue-bridge', 'gateway');
+  mkdirSync(join(gwRoot, 'dist'), { recursive: true });
+  writeFileSync(join(gwRoot, 'dist', 'main.js'), '// compiled gateway\n');
+
+  const pluginDir = join(root, 'node_modules', '@ue-bridge', 'dsh-plugin');
+  mkdirSync(join(pluginDir, 'src'), { recursive: true });
+
+  const found = resolveGatewayLocation(pluginModuleUrl(pluginDir));
+  assert.ok(found, 'gateway should be found');
+  assert.equal(found.compiled, true, 'compiled entry must be selected');
+  assert.equal(found.main, 'dist/main.js', 'path must use forward slashes on every platform');
+});
+
+test('reports a source entry as not compiled', () => {
+  const root = mkdtempSync(join(tmpdir(), 'dsh-gw-src-'));
+  stageCloneLayout(root);
+  const pluginDir = join(root, 'packages', 'dsh-plugin');
+  mkdirSync(join(pluginDir, 'src'), { recursive: true });
+
+  const found = resolveGatewayLocation(pluginModuleUrl(pluginDir));
+  assert.equal(found?.compiled, false, 'a TS entry needs the type-stripping flag');
+  assert.equal(found?.main, 'src/main.ts');
+});
+
 test('resolves from the real repository without configuration', () => {
   // Anchor: this test file always ships inside the repository.
   const repoRoot = join(import.meta.dirname, '..', '..');

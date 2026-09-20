@@ -13,8 +13,10 @@
     config:
       preset: ue-python
       gatewayCommand: node
+      # Compiled JS, not packages/gateway/src/main.ts: Node refuses to strip
+      # TypeScript types for files under node_modules, which is where dsh
+      # installs profile plugins. The relative path keeps it portable.
       gatewayArgs:
-        - --experimental-strip-types
-        - packages/gateway/src/main.ts
+        - node_modules/@ue-bridge/gateway/dist/main.js
       mcpUrl: http://127.0.0.1:8000/mcp
       approvalChannelAvailable: false

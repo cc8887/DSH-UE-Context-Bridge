@@ -4,15 +4,15 @@
  * The bundle patch must stay free of absolute paths, or it stops working the
  * moment the clone moves or another machine installs it. So instead of a
  * baked-in `gatewayCwd`, the plugin walks up from its own module and finds the
- * gateway by shape: the directory that contains `src/main.ts`.
+ * gateway by shape: a sibling `gateway` directory containing an entrypoint.
  *
- * That single rule covers both layouts without configuration:
+ * That single rule covers every layout without configuration:
  *
- *   installed   <profile>/node_modules/@ue-bridge/gateway/src/main.ts
+ *   installed   <profile>/node_modules/@ue-bridge/gateway/dist/main.js
  *   from a clone <repo>/packages/gateway/src/main.ts
  *
- * Node resolves the gateway's own `@ue-bridge/contracts/*` imports by walking
- * up to the profile's node_modules, so the gateway works the same either way.
+ * The compiled entry wins when both exist, because a release install ships
+ * `dist` and Node refuses to strip types under node_modules.
  */
 
 import { dirname, join, resolve } from 'node:path';
@@ -22,11 +22,16 @@ import { fileURLToPath } from 'node:url';
 /** Where to look for the gateway, relative to each ancestor of this module. */
 const CANDIDATE_GATEWAY_DIRS = ['gateway', join('packages', 'gateway')] as const;
 
+/** Entrypoints in preference order: compiled output, then a source checkout. */
+const CANDIDATE_ENTRIES = [join('dist', 'main.js'), join('src', 'main.ts')] as const;
+
 export interface GatewayLocation {
   /** Directory to run the gateway in: the gateway package root. */
   readonly cwd: string;
   /** Gateway entrypoint, relative to `cwd`. */
   readonly main: string;
+  /** True when `main` is compiled JS, so no type-stripping flag is needed. */
+  readonly compiled: boolean;
 }
 
 /**
@@ -45,8 +50,14 @@ export function resolveGatewayLocation(
   for (;;) {
     for (const candidate of CANDIDATE_GATEWAY_DIRS) {
       const root = resolve(dir, candidate);
-      const main = join(root, 'src', 'main.ts');
-      if (existsSync(main)) return { cwd: root, main: 'src/main.ts' };
+      for (const entry of CANDIDATE_ENTRIES) {
+        if (!existsSync(join(root, entry))) continue;
+        return {
+          cwd: root,
+          main: entry.replaceAll('\\', '/'),
+          compiled: entry.endsWith('.js'),
+        };
+      }
     }
     const parent = dirname(dir);
     if (parent === dir) return undefined;
