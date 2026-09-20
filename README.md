@@ -110,6 +110,7 @@ locally does not reduce UE-side memory or transport cost.
 ## Repository layout
 
 ```text
+packages/bundle/      DSH profile bundle: declares dsh.bundle.patch, installed via `dsh plugin add`
 packages/contracts/    shared model-tool, IPC and budget contracts
 packages/dsh-plugin/   DSH plugin: tool registration, presets, approval, lifecycle
 packages/gateway/      gateway subprocess: UE MCP client, catalog, ledger

@@ -48,6 +48,30 @@ node scripts/build-plugin.mjs     # compile TS -> JS (Node cannot strip types in
 node scripts/deploy.mjs ue-bridge # install into the profile's node_modules
 ```
 
+### 2a. One-command install (recommended)
+
+`packages/bundle` is a real dsh bundle: its `package.json` declares
+`dsh.bundle.patch`, so `dsh plugin add` registers it automatically — no manual
+edit of the profile's `bundles` list.
+
+```bash
+npm pack -w @ue-bridge/bundle     # or: pnpm pack, in packages/bundle
+dsh plugin --profile ue-bridge add ./ue-bridge-bundle-0.1.0.tgz
+```
+
+`dsh plugin` forwards to pnpm and then reconciles `dsh.profile.bundles` against
+the installed state: any dependency declaring `dsh.bundle` joins the layer
+stack, and one that stops declaring it leaves. Verified on this machine — after
+`add`, the profile manifest contained `"@ue-bridge/bundle"` with no manual step.
+Registry names, git URLs, and local directories work too; relative paths are
+anchored to the invoking directory.
+
+The bundle patch carries **no absolute path**. `gatewayCwd` used to be a
+hardcoded clone location, which made the package non-portable; it is now
+resolved at runtime by `gateway-root.ts`, which finds the gateway by shape (the
+directory containing `src/main.ts`) for both a clone and a profile install.
+Leave `gatewayCwd` unset unless you need to override that discovery.
+
 ## 2b. Enable the Python preset (ue-python)
 
 The editor exposes **no** built-in `python.execute`. The only MCP-visible
@@ -107,6 +131,10 @@ Add the bundle to `~/.dsh/profiles/ue-bridge/package.json`:
 ```json
 "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-headless", "@ue-bridge/bundle"]
 ```
+
+Prefer the one-command install in **2a** instead: `dsh plugin add` writes this
+entry itself. Edit it by hand only when the bundle is installed by other means
+(for example, a plain file copy).
 
 A **new** plugin entry must come from a bundle layer using `insert`. The profile
 root `cordis.yml` is reset to `[]` on every boot, and a patch overlay can only

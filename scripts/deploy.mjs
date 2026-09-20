@@ -4,6 +4,9 @@
  * dsh loads plugins from the profile's node_modules, where Node refuses to
  * strip TypeScript types, so the plugin is compiled to plain JS first.
  *
+ * The bundle package is installed as well, so `dsh plugin add` can register it
+ * by installed state (see docs/setup.md).
+ *
  * Usage: node scripts/deploy.mjs [profileName]   (default: ue-bridge)
  */
 
@@ -24,12 +27,19 @@ execFileSync('node', ['scripts/build-plugin.mjs'], { stdio: 'inherit', shell: tr
 
 mkdirSync(`${dst}/dsh-plugin`, { recursive: true });
 mkdirSync(`${dst}/contracts`, { recursive: true });
+mkdirSync(`${dst}/bundle`, { recursive: true });
 
 // Replace rather than merge, so stale JS never survives a rebuild.
-rmSync(`${dst}/dsh-plugin/dist`, { recursive: true, force: true });
-rmSync(`${dst}/contracts/dist`, { recursive: true, force: true });
+for (const pkg of ['dsh-plugin', 'contracts', 'bundle']) {
+  rmSync(`${dst}/${pkg}/dist`, { recursive: true, force: true });
+}
+rmSync(`${dst}/bundle/cordis.patch.yml`, { force: true });
+
 copySyncSafe('packages/dsh-plugin/dist', `${dst}/dsh-plugin/dist`);
 copySyncSafe('packages/contracts/dist', `${dst}/contracts/dist`);
+// The bundle is a patch document plus its manifest, not compiled output.
+copySyncSafe('packages/bundle/cordis.patch.yml', `${dst}/bundle/cordis.patch.yml`);
+copySyncSafe('packages/bundle/package.json', `${dst}/bundle/package.json`);
 
 console.log(`deploy: installed into ${dst}`);
 console.log('next: add @ue-bridge/bundle to the profile bundles (see docs/setup.md)');

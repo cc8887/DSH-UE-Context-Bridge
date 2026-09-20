@@ -64,6 +64,7 @@ dsh --profile ue-bridge "use ue_find to look up crash tools"
 ## 目录结构
 
 ```text
+packages/bundle/      DSH profile bundle：声明 dsh.bundle.patch，通过 `dsh plugin add` 安装
 packages/contracts/    共享的模型工具、IPC 与预算契约
 packages/dsh-plugin/   DSH 插件：工具注册、预设、审批、生命周期
 packages/gateway/      网关子进程：UE MCP 客户端、目录、调用账本

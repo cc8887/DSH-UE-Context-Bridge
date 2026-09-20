@@ -17,6 +17,7 @@ import {
   ensureConnected,
   type HostBinding,
 } from './tools.ts';
+import { resolveGatewayLocation } from './gateway-root.ts';
 import { runInvariants } from './invariants.ts';
 import { EditorSession } from './editor-lifecycle.ts';
 import { EngineSelectionStore } from './engine-selection.ts';
@@ -27,7 +28,12 @@ export interface UeBridgeConfig {
   /** Gateway entrypoint. */
   gatewayCommand: string;
   gatewayArgs: string[];
-  gatewayCwd: string;
+  /**
+   * Working directory for the gateway. Optional: when omitted the gateway is
+   * located from the plugin's own install location, so the bundle patch
+   * carries no machine-specific path. Set it only to override that discovery.
+   */
+  gatewayCwd?: string;
   /**
    * UE MCP endpoint, read from the editor-generated config. Never hardcoded:
    * the port and path are editor settings.
@@ -57,10 +63,21 @@ function resolveMcpUrl(config: UeBridgeConfig): string {
 
 export function apply(ctx: Context, config: UeBridgeConfig): () => void {
   const preset: PresetDefinition = resolvePreset(config.preset);
+
+  // The gateway ships beside this plugin, so its root is discovered rather
+  // than configured. Only an explicit gatewayCwd overrides that.
+  const gatewayCwd = config.gatewayCwd ?? resolveGatewayLocation()?.cwd;
+  if (!gatewayCwd) {
+    throw new Error(
+      'ue-bridge: gateway package not found beside the plugin and no gatewayCwd was set; ' +
+        'install @ue-bridge/gateway next to @ue-bridge/dsh-plugin, or set gatewayCwd',
+    );
+  }
+
   const gateway = new GatewayClient({
     command: config.gatewayCommand,
     args: config.gatewayArgs,
-    cwd: config.gatewayCwd,
+    cwd: gatewayCwd,
   });
   gateway.start();
 

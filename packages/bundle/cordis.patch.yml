@@ -1,0 +1,20 @@
+# UE Context Bridge bundle patch.
+#
+# Applied as a bundle layer, the same shape dsh-base uses. `insert` is how a NEW
+# entry is introduced; a plain id-targeted patch can only override existing rows.
+#
+# No absolute path appears here on purpose. gatewayCwd is resolved at runtime
+# from this bundle's own install location (see gateway-root.ts), so the same
+# patch works on any machine and after the clone moves.
+
+- insert:
+  - id: ue-bridge
+    name: '@ue-bridge/dsh-plugin'
+    config:
+      preset: ue-python
+      gatewayCommand: node
+      gatewayArgs:
+        - --experimental-strip-types
+        - packages/gateway/src/main.ts
+      mcpUrl: http://127.0.0.1:8000/mcp
+      approvalChannelAvailable: false
