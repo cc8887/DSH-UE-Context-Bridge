@@ -424,8 +424,18 @@ export class EditorSession extends EventEmitter {
     this.logPath = join(this.options.projectRoot, 'Saved', 'Logs', `${this.options.projectName ?? 'Editor'}.log`);
 
     const out: string[] = [];
+    // Same codepage concern as the build path: the editor writes localized
+    // console text, and UTF-8 decoding would corrupt it.
+    const decode = (chunk: Buffer): string => {
+      if (process.platform !== 'win32') return chunk.toString('utf8');
+      try {
+        return new TextDecoder('gbk').decode(chunk);
+      } catch {
+        return chunk.toString('utf8');
+      }
+    };
     const pump = (chunk: Buffer) => {
-      const text = chunk.toString('utf8');
+      const text = decode(chunk);
       out.push(text);
       // The editor prints this once it is interactive; before that, python
       // calls would time out against a half-initialized process.
@@ -544,8 +554,20 @@ export class EditorSession extends EventEmitter {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       const chunks: string[] = [];
-      child.stdout?.on('data', (c: Buffer) => chunks.push(c.toString('utf8')));
-      child.stderr?.on('data', (c: Buffer) => chunks.push(c.toString('utf8')));
+      // MSVC/UBT emit the active console codepage (GBK on a zh-CN Windows),
+      // not UTF-8. Decoding as UTF-8 turns every non-ASCII message into
+      // replacement characters, so the model reads mojibake where it should
+      // read the compiler's actual wording.
+      const decode = (c: Buffer): string => {
+        if (process.platform !== 'win32') return c.toString('utf8');
+        try {
+          return new TextDecoder('gbk').decode(c);
+        } catch {
+          return c.toString('utf8');
+        }
+      };
+      child.stdout?.on('data', (c: Buffer) => chunks.push(decode(c)));
+      child.stderr?.on('data', (c: Buffer) => chunks.push(decode(c)));
 
       // A spawn failure also fires 'close', so record it and let close finish.
       let spawnError: Error | null = null;
