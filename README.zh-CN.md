@@ -27,6 +27,24 @@ node scripts/deploy.mjs ue-bridge
 dsh --profile ue-bridge "use ue_find to look up crash tools"
 ```
 
+若要从发布制品安装而非克隆仓库，见[一键安装](#一键安装)。
+
+完整步骤见 [docs/setup.md](docs/setup.md)，其中有两个不显然的关键配置：`bAutoStartServer=True`（不设置则无人监听）与 `bEnableToolSearch=False`（否则只暴露三个元工具）。
+
+## 一键安装
+
+无需克隆仓库，直接从发布制品安装到 DSH profile：
+
+```bash
+dsh plugin --profile ue-bridge add \
+  https://github.com/cc8887/DSH-UE-Context-Bridge/releases/download/v0.1.0/ue-bridge-bundle-0.1.0.tgz
+node "<profile-dir>/node_modules/@ue-bridge/bundle/install.mjs" --profile ue-bridge
+```
+
+其中 `<profile-dir>` 是 dsh 为 `--profile ue-bridge` 使用的 profile 目录，默认为 `~/.dsh/profiles/ue-bridge`；Windows 下在 PowerShell 中用 `%USERPROFILE%\.dsh\profiles\ue-bridge`。脚本同样会读取 `DSH_HOME` 环境变量。
+
+第一步解包 bundle 并注册为 profile 层，第二步把已编译的包从 `packages/` 移到 `node_modules/@ue-bridge/*`，即 Node 实际解析的位置。完成后重启一次 profile 以加载新层。
+
 完整步骤见 [docs/setup.md](docs/setup.md)，其中有两个不显然的关键配置：`bAutoStartServer=True`（不设置则无人监听）与 `bEnableToolSearch=False`（否则只暴露三个元工具）。
 
 ## 相比直接接 UE MCP 的优势

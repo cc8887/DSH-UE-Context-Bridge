@@ -121,6 +121,11 @@ if (existsSync(join(root, 'LICENSE'))) {
   copyFileSync(join(root, 'LICENSE'), join(staging, 'LICENSE'));
 }
 
+// The unpacked bundle ships install.mjs so the documented one-liner works on a
+// machine that has no clone: `dsh plugin add` runs first, then this script
+// runs straight out of the installed bundle directory.
+copyFileSync(join(root, 'scripts', 'install.mjs'), join(staging, 'install.mjs'));
+
 execFileSync('npm', ['pack', '--pack-destination', outDir], {
   cwd: staging,
   stdio: 'inherit',
@@ -140,6 +145,7 @@ for (const required of [
   'packages/contracts/dist/index.js',
   'packages/vendor/@modelcontextprotocol/sdk/package.json',
   'cordis.patch.yml',
+  'install.mjs',
 ]) {
   if (!listed.includes(required)) {
     throw new Error(`release tarball is missing ${required}; contents:\n${listed}`);

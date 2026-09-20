@@ -33,6 +33,33 @@ node scripts/deploy.mjs ue-bridge
 dsh --profile ue-bridge "use ue_find to look up crash tools"
 ```
 
+For installing from a release artifact instead of a clone, see
+[One-command install](#one-command-install).
+
+See [docs/setup.md](docs/setup.md) for the editor-side configuration, which
+needs two non-obvious settings: `bAutoStartServer=True` (nothing listens without
+it) and `bEnableToolSearch=False` (otherwise only three meta-tools are exposed).
+
+## One-command install
+
+Install into a DSH profile from the release artifact, without cloning the repo:
+
+```bash
+dsh plugin --profile ue-bridge add \
+  https://github.com/cc8887/DSH-UE-Context-Bridge/releases/download/v0.1.0/ue-bridge-bundle-0.1.0.tgz
+node "<profile-dir>/node_modules/@ue-bridge/bundle/install.mjs" --profile ue-bridge
+```
+
+where `<profile-dir>` is the profile directory dsh reports for `--profile
+ue-bridge` (by default `~/.dsh/profiles/ue-bridge`). On Windows the same line
+works in PowerShell with `%USERPROFILE%\.dsh\profiles\ue-bridge`, and the script
+also resolves `DSH_HOME` when that is set.
+
+The first step unpacks the bundle and registers it as a profile layer. The
+second moves the compiled packages out of `packages/` into
+`node_modules/@ue-bridge/*`, where Node resolves them. Restart the profile once
+afterwards so the new layer is loaded.
+
 See [docs/setup.md](docs/setup.md) for the editor-side configuration, which
 needs two non-obvious settings: `bAutoStartServer=True` (nothing listens without
 it) and `bEnableToolSearch=False` (otherwise only three meta-tools are exposed).
