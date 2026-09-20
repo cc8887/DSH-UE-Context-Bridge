@@ -17,12 +17,13 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, watch, type FSWatcher } from 'node:fs';
 import { join } from 'node:path';
 import { EditorRegistry, type EditorInstance } from './editor-registry.ts';
 import { ConfigWatcher } from './config-watch.ts';
 import { BuildFreshness } from './build-freshness.ts';
 import { resolveEngineRoot, type EngineResolution } from './toolchain.ts';
+import { diagnoseWindowsToolchain, type ToolchainDiagnosis } from './windows-toolchain.ts';
 
 export type EditorPhase = 'stopped' | 'starting' | 'running' | 'building' | 'crashed' | 'stopping';
 
@@ -54,6 +55,44 @@ export interface BuildResult {
   source: 'ubt' | 'cache';
   /** Tail of raw output, for messages the parser did not classify. */
   rawTail: string[];
+  /**
+   * Compiler diagnosis, attached when the failure is the toolchain rather
+   * than the code — UBT asking for a Visual Studio that is not installed.
+   * Without it the model sees only "Requested value 'VisualStudio2019' was
+   * not found", which names neither the config file to edit nor the
+   * compilers that do exist.
+   */
+  toolchain?: ToolchainDiagnosis;
+}
+
+/**
+ * Recognise a failure that came from choosing the compiler, not from the code.
+ *
+ * Two shapes, both seen against this machine:
+ *   - UBT cannot parse the configured <Compiler> into its enum at all, giving
+ *     "Requested value 'VisualStudio2019' was not found".
+ *   - It parsed, but the toolset is absent, giving an MSB error about a
+ *     missing VCTools or platform toolset.
+ *
+ * Deliberately narrow: a normal compile error must not be reported as a
+ * toolchain problem, or the model will chase the wrong cause. Matches only
+ * when no source file was implicated.
+ */
+function isCompilerSelectionFailure(build: BuildResult): boolean {
+  const text = build.rawTail.join('\n');
+  const mentionsToolchain =
+    /Requested value '[^']+' was not found/i.test(text) ||
+    /MSB\d+.*(?:VCTools|PlatformToolset|VisualStudio)/i.test(text) ||
+    /WindowsPlatform\.Compiler/i.test(text);
+  if (!mentionsToolchain) return false;
+
+  // If an error names a source file, the compiler ran and rejected the code,
+  // so the toolchain worked. UBT-level exceptions muddy this by filling in
+  // the .uproject path as the "file", so that is not treated as source.
+  const namesSource = build.errors.some(
+    (e) => e.file && e.file.length > 0 && !e.file.endsWith('.uproject'),
+  );
+  return !namesSource;
 }
 
 /**
@@ -80,6 +119,28 @@ export interface CrashReport {
   /** Lines that look like a callstack or assertion, newest last. */
   summary: string[];
   logPath?: string;
+  /**
+   * What the engine itself recorded in CrashContext.runtime-xml.
+   *
+   * This is the engine's own verdict, not ours: CrashType distinguishes a real
+   * crash from an assert, ensure, stall or GPU crash, and ErrorMessage carries
+   * the assertion text. Preferring these over grepping the log means the model
+   * reads what the engine decided rather than what we guessed.
+   */
+  crashType?: string;
+  errorMessage?: string;
+  crashGuid?: string;
+  /**
+   * How this crash came to our attention.
+   *
+   * 'artifact'  — the Saved/Crashes directory appeared while the process was
+   *               still running. The engine writes artifacts before exiting
+   *               (verified against a real crash: ~3.8s of lead), so this is
+   *               the earliest and most common path.
+   * 'exit'      — the process exited non-zero and no directory had been seen
+   *               yet, so the crash was only discoverable after the fact.
+   */
+  detectedVia?: 'artifact' | 'exit';
 }
 
 export interface EditorStateSnapshot {
@@ -141,6 +202,19 @@ export class EditorSession extends EventEmitter {
   private lastCrash: CrashReport | undefined;
   private startedAt: string | undefined;
   private logPath: string | undefined;
+  /**
+   * True once a Saved/Crashes directory has been observed while the editor was
+   * still running. The engine writes crash artifacts before it exits, so this
+   * is the earliest possible detection point and it distinguishes "we saw the
+   * artifacts" from "we only noticed when the process died".
+   */
+  private crashSeenEarly = false;
+  /** Newest crash directory already accounted for; avoids re-reporting. */
+  private knownCrashDir: string | undefined;
+  /** Filesystem watcher over Saved/Crashes, active while the editor runs. */
+  private crashWatcher: FSWatcher | undefined;
+  /** Fallback poll for the window before Saved/Crashes exists. */
+  private crashPoll: ReturnType<typeof setInterval> | undefined;
 
   constructor(options: EditorSessionOptions, registry = new EditorRegistry(), watcher?: ConfigWatcher) {
     super();
@@ -379,6 +453,11 @@ export class EditorSession extends EventEmitter {
     ];
 
     const result = await this.runCollecting(buildBat, args, started, uproject);
+    // Attached at the single exit so every caller benefits — ensureReady, a
+    // script calling session.build() directly, and the MCP tool alike.
+    if (!result.ok && isCompilerSelectionFailure(result)) {
+      result.toolchain = diagnoseWindowsToolchain(this.options.engineRoot);
+    }
     this.lastBuild = result;
     this.setPhase(this.alive ? 'running' : this.lastCrash ? 'crashed' : 'stopped');
     this.emit('build', result);
@@ -422,6 +501,9 @@ export class EditorSession extends EventEmitter {
     this.child = child;
     this.startedAt = new Date().toISOString();
     this.logPath = join(this.options.projectRoot, 'Saved', 'Logs', `${this.options.projectName ?? 'Editor'}.log`);
+    this.crashSeenEarly = false;
+    this.knownCrashDir = this.newestCrashDir();
+    this.watchForCrashArtifacts();
 
     const out: string[] = [];
     // Same codepage concern as the build path: the editor writes localized
@@ -447,7 +529,14 @@ export class EditorSession extends EventEmitter {
     child.stderr?.on('data', pump);
 
     child.on('exit', (code, signal) => {
+      this.stopCrashWatch();
       const crashed = code !== 0 && code !== null;
+      // An early artifact detection already reported this crash; emitting again
+      // would give the model two reports for one failure.
+      if (this.crashSeenEarly) {
+        this.child = null;
+        return;
+      }
       const report = this.collectCrash(code, signal, out);
       if (crashed) {
         this.lastCrash = report;
@@ -476,6 +565,96 @@ export class EditorSession extends EventEmitter {
     return this.snapshot();
   }
 
+  /**
+   * Watch Saved/Crashes so a crash is reported when the engine writes its
+   * artifacts rather than when the process finally exits.
+   *
+   * The engine creates the crash directory and writes CrashContext.runtime-xml
+   * and the minidump before it exits (WindowsPlatformCrashContext.cpp:1001-
+   * 1045). Measured against a real crash, artifacts became visible about 3.8s
+   * before the process exited, so watching turns a seconds-late detection into
+   * an immediate one.
+   *
+   * Directory creation and file completion are separate events, so a newly
+   * seen directory is re-checked until its contents stop growing; otherwise we
+   * would parse a half-written XML.
+   */
+  private watchForCrashArtifacts(): void {
+    const dir = join(this.options.projectRoot, 'Saved', 'Crashes');
+    try {
+      this.crashWatcher?.close();
+      this.crashWatcher = watch(dir, { recursive: false }, () => {
+        const latest = this.newestCrashDir();
+        if (!latest || latest === this.knownCrashDir) return;
+        // Wait for writes to settle before reading.
+        this.settleCrashDir(latest, () => {
+          if (this.crashSeenEarly) return;
+          this.crashSeenEarly = true;
+          this.knownCrashDir = latest;
+          const report = this.collectCrash(this.child?.exitCode ?? null, null, []);
+          this.lastCrash = report;
+          this.setPhase('crashed');
+          this.emit('crash', report);
+        });
+      });
+      // A watcher on a directory that does not exist yet cannot fire, and the
+      // engine creates Saved/Crashes lazily. Polling covers that window.
+      this.crashPoll = setInterval(() => {
+        const latest = this.newestCrashDir();
+        if (!latest || latest === this.knownCrashDir) return;
+        this.settleCrashDir(latest, () => {
+          if (this.crashSeenEarly) return;
+          this.crashSeenEarly = true;
+          this.knownCrashDir = latest;
+          const report = this.collectCrash(this.child?.exitCode ?? null, null, []);
+          this.lastCrash = report;
+          this.setPhase('crashed');
+          this.emit('crash', report);
+        });
+      }, 500);
+    } catch {
+      // No crash dir yet, or watching is unsupported: exit detection still
+      // applies, so this is not fatal.
+    }
+  }
+
+  /**
+   * Report a crash directory once its files have stopped growing.
+   *
+   * Reading immediately after the directory appears yields a truncated XML.
+   * Two consecutive equal measurements mean the writes have settled.
+   */
+  private settleCrashDir(dir: string, done: () => void): void {
+    let last = -1;
+    let stable = 0;
+    const tick = setInterval(() => {
+      let total = 0;
+      try {
+        for (const name of readdirSync(dir)) {
+          try {
+            total += statSync(join(dir, name)).size;
+          } catch {
+            /* file may vanish between listing and stat */
+          }
+        }
+      } catch {
+        return;
+      }
+      if (total > 0 && total === last) stable += 1;
+      else stable = 0;
+      last = total;
+      if (stable >= 2) {
+        clearInterval(tick);
+        done();
+      }
+    }, 100);
+    // Never wait forever; a partially written report beats none.
+    setTimeout(() => {
+      clearInterval(tick);
+      done();
+    }, 5000);
+  }
+
   /** Ask the editor to shut down, then stop our watchers. */
   async stop(force = false): Promise<void> {
     if (!this.child) {
@@ -495,11 +674,25 @@ export class EditorSession extends EventEmitter {
       if (!exited) child.kill('SIGKILL');
     }
     this.child = null;
+    this.stopCrashWatch();
     this.setPhase('stopped');
+  }
+
+  /** Stop watching for crash artifacts. Idempotent. */
+  private stopCrashWatch(): void {
+    try {
+      this.crashWatcher?.close();
+    } catch {
+      /* already closed */
+    }
+    this.crashWatcher = undefined;
+    if (this.crashPoll) clearInterval(this.crashPoll);
+    this.crashPoll = undefined;
   }
 
   /** Release watchers and timers. Does not kill the editor. */
   dispose(): void {
+    this.stopCrashWatch();
     this.watcher.close();
     this.freshness.close();
     this.removeAllListeners();
@@ -679,14 +872,32 @@ export class EditorSession extends EventEmitter {
       }
     }
 
-    return {
+    const report: CrashReport = {
       detectedAt: new Date().toISOString(),
       exitCode: code,
       signal: signal ?? null,
+      detectedVia: this.crashSeenEarly ? 'artifact' : 'exit',
       ...(crashDir ? { crashDir } : {}),
       summary: [...new Set(summary)].slice(-40),
       ...(logPath ? { logPath } : {}),
     };
+
+    // Prefer the engine's own verdict over anything we could infer. These come
+    // from the same file the crash reporter uploads, so they agree with what a
+    // human would see in Crash Report Client.
+    if (crashDir) {
+      const meta = readCrashContext(crashDir);
+      if (meta.crashType) report.crashType = meta.crashType;
+      if (meta.errorMessage) report.errorMessage = meta.errorMessage;
+      if (meta.crashGuid) report.crashGuid = meta.crashGuid;
+      // The engine's one-line verdict is more informative than a grep of the
+      // log, so lead with it.
+      if (meta.errorMessage) {
+        report.summary = [meta.errorMessage, ...report.summary.filter((l) => l !== meta.errorMessage)];
+      }
+    }
+
+    return report;
   }
 
   private newestCrashDir(): string | undefined {
@@ -744,6 +955,8 @@ export async function ensureReady(
   await session.prepare();
   const build = await session.build(...(options.forceBuild ? [{ force: true }] : []));
   if (!build.ok) {
+    // Compiler diagnosis is attached by build() itself, so every entry point
+    // gets it, not just this one.
     return {
       action: 'build_failed',
       built: true,
@@ -774,6 +987,47 @@ export async function ensureReady(
       state: session.snapshot(),
       ...{ note: error instanceof Error ? error.message : String(error) },
     };
+  }
+}
+
+/**
+ * Read the engine's own crash verdict from CrashContext.runtime-xml.
+ *
+ * Two things make this non-trivial, both found against real crash output:
+ *   - The file is UTF-16LE with a BOM. Reading it as UTF-8 returns mostly
+ *     replacement characters, so every field would silently be undefined.
+ *   - Some tags (CrashReporterMessage) appear more than once, so matches must
+ *     be non-greedy or they swallow everything up to the last occurrence.
+ *
+ * Returns empty fields rather than throwing: a crash report with no metadata is
+ * still more useful than no report at all.
+ */
+export function readCrashContext(crashDir: string): {
+  crashType?: string;
+  errorMessage?: string;
+  crashGuid?: string;
+} {
+  const xml = join(crashDir, 'CrashContext.runtime-xml');
+  if (!existsSync(xml)) return {};
+  try {
+    const raw = readFileSync(xml);
+    const isUtf16 = raw.length >= 2 && raw[0] === 0xff && raw[1] === 0xfe;
+    const text = isUtf16
+      ? new TextDecoder('utf-16le').decode(raw.subarray(2))
+      : raw.toString('utf8');
+    const field = (key: string): string | undefined => {
+      const m = new RegExp(`<${key}>([\\s\\S]*?)</${key}>`).exec(text);
+      const v = m?.[1]?.trim();
+      return v ? v : undefined;
+    };
+    return {
+      crashType: field('CrashType'),
+      errorMessage: field('ErrorMessage'),
+      crashGuid: field('CrashGUID'),
+    };
+  } catch {
+    // Half-written or locked file: report what we can.
+    return {};
   }
 }
 

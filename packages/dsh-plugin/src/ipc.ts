@@ -5,7 +5,8 @@
  * dedicated stdio (JSON-lines); logs go to stderr.
  */
 
-import { ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type {
   IpcIdentity,
   IpcMethod,

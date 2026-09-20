@@ -36,49 +36,18 @@ function check(name: string, fn: () => void): void {
   }
 }
 
-function resolveEngineRoot(): string | undefined {
-  const candidates: string[] = [];
-  const env = process.env['DSH_UE_ENGINE_ROOT'];
-  if (env) candidates.push(env);
-  for (const parent of [process.cwd(), join(homedir(), 'Github'), homedir()]) {
-    if (!existsSync(parent)) continue;
-    try {
-      for (const e of readdirSync(parent)) candidates.push(join(parent, e));
-    } catch {
-      /* unreadable */
-    }
-  }
-  for (const r of candidates) {
-    if (existsSync(join(r, 'Engine', 'Build', 'BatchFiles', 'Build.bat'))) return r;
-  }
-  return undefined;
-}
+// Engine and project are discovered, never hard-coded, via scripts/lib/
+// ue-discovery.mjs — shared with every other script here. This one needs
+// UBT specifically, so it asks for the 'build' predicate.
 
-function resolveProjectRoot(engineRoot: string): string | undefined {
-  const env = process.env['DSH_UE_PROJECT_ROOT'];
-  if (env && existsSync(env)) return env;
-  const samples = join(engineRoot, 'Samples', 'Games');
-  if (existsSync(samples)) {
-    for (const n of readdirSync(samples)) {
-      const d = join(samples, n);
-      if (existsSync(join(d, `${n}.uproject`))) return d;
-    }
-  }
-  return undefined;
-}
+import { resolveUePaths } from './lib/ue-discovery.mjs';
 
-const engineRoot = resolveEngineRoot();
-if (!engineRoot) {
-  console.log('SKIP  no engine with Build.bat found; set DSH_UE_ENGINE_ROOT');
+const env = resolveUePaths({ require: 'build' });
+if (!env.ok) {
+  console.log(`SKIP  ${env.reason}`);
   process.exit(0);
 }
-const projectRoot = resolveProjectRoot(engineRoot);
-if (!projectRoot) {
-  console.log('SKIP  no project found; set DSH_UE_PROJECT_ROOT');
-  process.exit(0);
-}
-
-const projectName = basename(projectRoot);
+const { engineRoot, projectRoot, projectName } = env;
 console.log(`engine  : ${engineRoot}`);
 console.log(`project : ${projectRoot}`);
 
@@ -133,10 +102,22 @@ try {
     engineRoot,
     target: `${projectName}Editor`,
   });
-  const result = await session.build({ force: true });
+  // No force: this is a new session's first build, so there is no cached
+  // verdict to bypass. force only skips dsh's cache; it never reaches UBT.
+  const result = await session.build();
 
   console.log(`  ok=${result.ok} exit=${result.exitCode} source=${result.source} ${result.durationMs}ms`);
   console.log(`  errors=${result.errors.length} warnings=${result.warnings.length}`);
+  console.log(`  errors=${result.errors.length} warnings=${result.warnings.length}`);
+  if (result.toolchain) {
+    const t = result.toolchain;
+    console.log(`  toolchain ok=${t.ok} requested=${t.effective?.compiler ?? '-'} missing=${t.missing ?? '-'}`);
+    console.log(`    requested_by=${t.effectiveFrom ?? '-'}`);
+    for (const i of [...t.usable, ...t.unusable]) {
+      console.log(`    installed: ${i.compiler ?? '?'} ${i.id}/${i.edition} ${i.version ?? ''} ${i.unsupported ? 'UNUSABLE' : 'usable'}`);
+    }
+    for (const f of t.fixes) console.log(`    fix: ${f}`);
+  }
   for (const e of result.errors.slice(0, 5)) {
     console.log(`    ${e.severity} ${e.code} ${e.file}:${e.line}:${e.column} :: ${e.message}`);
   }

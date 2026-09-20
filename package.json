@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "tsc -b packages/contracts && tsc -p packages/gateway && tsc -p packages/dsh-plugin",
-    "typecheck": "tsc -b packages/contracts && tsc -p packages/gateway",
+    "typecheck": "tsc -b packages/contracts && tsc -p packages/gateway && tsc -p packages/dsh-plugin",
     "test": "node --experimental-transform-types --test tests/unit/*.test.mjs",
     "test:ue": "node --experimental-transform-types scripts/verify_ue_real_crash.mts",
     "test:ue:build": "node --experimental-transform-types scripts/verify_live_build.mts"

@@ -28,11 +28,14 @@
  * Run: node --experimental-transform-types scripts/verify_ue_real_crash.mts
  */
 
+// Engine and project are discovered, never hard-coded, via scripts/lib/
+// ue-discovery.mjs — shared with every other script here.
+
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import { homedir } from 'node:os';
+import { resolveUePaths } from './lib/ue-discovery.mjs';
 
 let failures = 0;
 function check(name: string, fn: () => void): void {
@@ -46,52 +49,20 @@ function check(name: string, fn: () => void): void {
   }
 }
 
-function resolveEngineRoot(): string | undefined {
-  const candidates: string[] = [];
-  const env = process.env['DSH_UE_ENGINE_ROOT'];
-  if (env) candidates.push(env);
-  for (const parent of [process.cwd(), join(homedir(), 'Github'), homedir()]) {
-    if (!existsSync(parent)) continue;
-    try {
-      for (const e of readdirSync(parent)) candidates.push(join(parent, e));
-    } catch {
-      /* unreadable parent */
-    }
-  }
-  for (const r of candidates) {
-    if (existsSync(join(r, 'Engine', 'Binaries', 'Win64'))) return r;
-  }
-  return undefined;
-}
-
-function resolveProjectRoot(engineRoot: string): string | undefined {
-  const env = process.env['DSH_UE_PROJECT_ROOT'];
-  if (env && existsSync(env)) return env;
-  const samples = join(engineRoot, 'Samples', 'Games');
-  if (existsSync(samples)) {
-    for (const n of readdirSync(samples)) {
-      const d = join(samples, n);
-      if (existsSync(join(d, `${n}.uproject`))) return d;
-    }
-  }
-  return undefined;
-}
-
-const engineRoot = resolveEngineRoot();
-if (!engineRoot) {
-  console.log('SKIP  no real engine found; set DSH_UE_ENGINE_ROOT');
+const env = resolveUePaths({ require: 'editor' });
+if (!env.ok) {
+  console.log(`SKIP  ${env.reason}`);
   process.exit(0);
 }
-const projectRoot = resolveProjectRoot(engineRoot);
-if (!projectRoot) {
-  console.log('SKIP  no project found; set DSH_UE_PROJECT_ROOT');
-  process.exit(0);
-}
-
-const projectName = basename(projectRoot);
-const crashRoot = join(projectRoot, 'Saved', 'Crashes');
-const logPath = join(projectRoot, 'Saved', 'Logs', `${projectName}.log`);
-const uproject = join(projectRoot, `${projectName}.uproject`);
+const {
+  engineRoot,
+  projectRoot,
+  projectName,
+  uproject,
+  crashes: crashRoot,
+  logs,
+} = env;
+const logPath = join(logs, `${projectName}.log`);
 const binaries = join(engineRoot, 'Engine', 'Binaries', 'Win64');
 
 console.log(`engine  : ${engineRoot}`);
@@ -119,12 +90,37 @@ function newestCrashDir(dirs: string[]): string | undefined {
 function readCrashContext(dir: string): Record<string, string> {
   const xml = join(dir, 'CrashContext.runtime-xml');
   if (!existsSync(xml)) return {};
-  const text = readFileSync(xml, 'utf8');
+  // The engine writes this file as UTF-16LE with a BOM on Windows. Reading it
+  // as utf8 yields NUL-separated garbage and every tag match silently fails,
+  // so decode by BOM and fall back to utf8 for hand-written/mock files.
+  const text = readCrashXml(xml);
   const grab = (tag: string): string => {
     const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`));
     return m?.[1]?.trim() ?? '';
   };
   return { type: grab('CrashType'), message: grab('ErrorMessage') };
+}
+
+/**
+ * Decode a CrashContext.runtime-xml. BOM decides the encoding: FF FE / FE FF
+ * mean UTF-16 (what UE emits), otherwise treat it as UTF-8.
+ */
+function readCrashXml(path: string): string {
+  const buf = readFileSync(path);
+  if (buf.length >= 2) {
+    if (buf[0] === 0xff && buf[1] === 0xfe) return buf.subarray(2).toString('utf16le');
+    if (buf[0] === 0xfe && buf[1] === 0xff) {
+      // Big-endian UTF-16: swap into little-endian before decoding.
+      const swapped = Buffer.from(buf.subarray(2));
+      for (let i = 0; i + 1 < swapped.length; i += 2) {
+        const t = swapped[i]!;
+        swapped[i] = swapped[i + 1]!;
+        swapped[i + 1] = t;
+      }
+      return swapped.toString('utf16le');
+    }
+  }
+  return buf.toString('utf8');
 }
 
 console.log('\n--- assumption: log path matches the resolved project name ---');

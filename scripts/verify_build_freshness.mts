@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Does caching UBT's verdict stay correct?
  *
  * The risk is not slowness, it is a stale "up to date" that hides a needed
@@ -6,6 +6,20 @@
  * then confirms an edit invalidates the cache and forces a re-ask.
  *
  * Uses Lyra: it is already built, so UBT answers quickly and truthfully.
+ *
+ * Every real UBT invocation costs a full dependency-graph walk, so this keeps
+ * them to the minimum that still proves the property:
+ *
+ *   - `force:true` only bypasses dsh's own cache. It does not make UBT
+ *     recompile, and it is passed nowhere near Build.bat. Forcing the first
+ *     build of a fresh session is a no-op, because a new EditorSession owns a
+ *     new BuildFreshness and therefore starts with no cache to bypass.
+ *   - The cache lives in memory on the session, so no second session can ever
+ *     observe a first session's verdict. Running the cache checks on one
+ *     session instead of two proves the same thing for one less UBT walk.
+ *   - A run that answers "up to date" did no work, so it cannot have flipped
+ *     the state it just reported. Only a run that did work can leave a
+ *     verdict the next run disagrees with, so only that case re-asks.
  */
 
 import { EditorSession } from '../packages/dsh-plugin/src/editor-lifecycle.ts';
@@ -23,32 +37,26 @@ function makeSession(): EditorSession {
   });
 }
 
-// Baseline: what does UBT really say once the tree has settled? A single run
-// can legitimately flip state by doing work, so ask until two agree.
+// Baseline: what does UBT really say once the tree has settled?
 const probe = makeSession();
 await probe.prepare();
-let truth = await probe.build({ force: true });
-for (let i = 0; i < 3; i += 1) {
-  const again = await probe.build({ force: true });
-  if (again.upToDate === truth.upToDate) {
-    truth = again;
-    break;
-  }
-  truth = again;
+let truth = await probe.build();
+if (!truth.upToDate) {
+  // Run 1 did work, so its own verdict describes the tree before that work.
+  truth = await probe.build();
 }
 console.log(`baseline (settled, asked UBT): upToDate=${truth.upToDate} source=${truth.source}`);
 probe.dispose();
 
-// Cached path: same question, should not re-run UBT.
-const cached = makeSession();
-await cached.prepare();
-const t1 = Date.now();
-const c1 = await cached.build({ force: true });
-await cached.prepare();
+// Cached path, then edit invalidation, on one session.
+const session = makeSession();
+await session.prepare();
+const c1 = await session.build();
 const t2 = Date.now();
-const c2 = await cached.build();
+const c2 = await session.build();
+const cachedMs = Date.now() - t2;
 console.log(`after record: upToDate=${c1.upToDate} source=${c1.source}`);
-console.log(`cached read:  upToDate=${c2.upToDate} source=${c2.source} ${Date.now() - t2}ms`);
+console.log(`cached read:  upToDate=${c2.upToDate} source=${c2.source} ${cachedMs}ms`);
 
 if (c2.source !== 'cache') {
   console.log('FAIL: second identical build did not come from cache');
@@ -58,13 +66,10 @@ if (c2.upToDate !== truth.upToDate) {
   console.log(`FAIL: cache says ${c2.upToDate} but UBT says ${truth.upToDate}`);
   process.exit(1);
 }
-console.log(`  cache agrees with UBT, saved ~${Math.max(0, truth.durationMs - (Date.now() - t2))}ms`);
+console.log(`  cache agrees with UBT, saved ~${Math.max(0, truth.durationMs - cachedMs)}ms`);
 
 // The dangerous case: a source edit must invalidate the cache.
-const watcher = makeSession();
-await watcher.prepare();
-await watcher.build({ force: true });
-const beforeEdit = await watcher.build();
+const beforeEdit = await session.build();
 console.log(`before edit: source=${beforeEdit.source}`);
 if (beforeEdit.source !== 'cache') {
   console.log('FAIL: expected a cached read before the edit');
@@ -77,7 +82,7 @@ await (await import('node:fs/promises')).writeFile(target, `${original}\n// dsh 
 try {
   // Give the watcher a moment; the mtime check is the backstop either way.
   await new Promise((r) => setTimeout(r, 700));
-  const afterEdit = await watcher.build();
+  const afterEdit = await session.build();
   console.log(`after edit:  source=${afterEdit.source} upToDate=${afterEdit.upToDate}`);
   if (afterEdit.source !== 'ubt') {
     console.log('FAIL: an edited source was served from cache');
@@ -90,7 +95,7 @@ try {
   console.log('  edit correctly forced a re-ask, and UBT says work is needed');
 } finally {
   await (await import('node:fs/promises')).writeFile(target, original);
-  watcher.dispose();
+  session.dispose();
 }
 
 console.log('DONE');

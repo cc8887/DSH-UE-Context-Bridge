@@ -63,7 +63,9 @@ await section('build failure is parsed into structured errors', async () => {
     engineRoot: engine.root,
   });
 
-  const result = await session.build({ force: true });
+  // No force: a new session has no cached verdict, and force only bypasses
+  // dsh's own cache — it is never passed to UBT.
+  const result = await session.build();
   console.log(`  ok=${result.ok} exit=${result.exitCode} source=${result.source}`);
   console.log(`  errors=${result.errors.length} warnings=${result.warnings.length}`);
   for (const e of result.errors) {
@@ -116,7 +118,9 @@ await section('a non-zero exit with no parsable line still reports an error', as
     engineRoot: engine.root,
   });
 
-  const result = await session.build({ force: true });
+  // No force: a new session has no cached verdict, and force only bypasses
+  // dsh's own cache — it is never passed to UBT.
+  const result = await session.build();
   console.log(`  ok=${result.ok} errors=${result.errors.length} code=${result.errors[0]?.code}`);
   console.log(`  message=${result.errors[0]?.message}`);
 
@@ -145,7 +149,9 @@ await section('a successful build reports up to date from UBT, not by inference'
     engineRoot: engine.root,
   });
 
-  const result = await session.build({ force: true });
+  // No force: a new session has no cached verdict, and force only bypasses
+  // dsh's own cache — it is never passed to UBT.
+  const result = await session.build();
   console.log(`  ok=${result.ok} upToDate=${result.upToDate} source=${result.source}`);
 
   check('success is not reported as a failure', () => {

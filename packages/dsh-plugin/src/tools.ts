@@ -36,6 +36,8 @@ import { PythonRemoteSession, RemoteExecutionError, DEFAULT_ENDPOINT } from './r
 import { EditorRegistry, renderIniOverrides, renderIniSection } from './editor-registry.ts';
 import { EditorSession, ensureReady } from './editor-lifecycle.ts';
 import type { EngineResolution } from './toolchain.ts';
+import { diagnoseWindowsToolchain } from './windows-toolchain.ts';
+import type { ToolchainDiagnosis } from './windows-toolchain.ts';
 import { enumerateEngineInstallations, validateToolchain } from './toolchain.ts';
 import {
   EngineSelectionStore,
@@ -605,6 +607,7 @@ export function registerEditorTools(
                       message: e.message,
                     })),
                     ...(outcome.build.ok ? {} : { raw_tail: outcome.build.rawTail.slice(-15) }),
+                    ...(outcome.build.toolchain ? { toolchain: shapeToolchain(outcome.build.toolchain) } : {}),
                   },
                 }
               : {}),
@@ -848,6 +851,10 @@ export function registerEditorTools(
                 ...(toolchain.sdk ? { sdk: toolchain.sdk } : {}),
                 ...(toolchain.raw ? { ubt_line: toolchain.raw } : {}),
                 ...(toolchain.error ? { error: toolchain.error } : {}),
+                // Attached whenever the compiler situation is worth seeing,
+                // not only on failure: a stale <Compiler> that happens to be
+                // satisfiable today still decides which toolset is used.
+                ...(compilerDiagnosis(toolchain, root) ?? {}),
               },
               ...{
                 note:
@@ -961,6 +968,51 @@ export function registerEditorTools(
       },
     }),
   );
+}
+
+/**
+ * Shape the compiler diagnosis for env_check output.
+ *
+ * Returns undefined when there is nothing worth reporting, so a healthy
+ * machine does not get noise. The point of surfacing this proactively is
+ * that UBT only mentions a bad <Compiler> once a build is attempted, and then
+ * only as an enum value with no file and no alternatives.
+ */
+function compilerDiagnosis(
+  toolchain: { valid: boolean; compiler?: ToolchainDiagnosis },
+  engineRoot: string,
+): Record<string, unknown> | undefined {
+  const diagnosis =
+    toolchain.compiler ?? (toolchain.valid ? undefined : diagnoseWindowsToolchain(engineRoot));
+  if (!diagnosis) return undefined;
+  return { compiler: shapeToolchain(diagnosis) };
+}
+
+/**
+ * Shape a compiler diagnosis for tool output.
+ *
+ * Reports only when there is something to say: a healthy machine gets no
+ * noise. The value is in the two fields UBT's own error omits — which file
+ * demanded the compiler, and what is installed instead.
+ */
+function shapeToolchain(diagnosis: ToolchainDiagnosis): Record<string, unknown> {
+  const installed = [...diagnosis.usable, ...diagnosis.unusable].map((i) => ({
+    compiler: i.compiler,
+    id: i.id,
+    edition: i.edition,
+    path: i.path,
+    ...(i.version ? { version: i.version } : {}),
+    ...(i.unsupported ? { usable: false, reason: i.reason } : { usable: true }),
+  }));
+
+  return {
+    ok: diagnosis.ok,
+    ...(diagnosis.effective ? { requested: diagnosis.effective.compiler } : {}),
+    ...(diagnosis.effectiveFrom ? { requested_by: diagnosis.effectiveFrom } : {}),
+    ...(diagnosis.missing ? { missing: diagnosis.missing } : {}),
+    installed,
+    ...(diagnosis.fixes.length > 0 ? { fixes: diagnosis.fixes } : {}),
+  };
 }
 
 async function resolveEffectClass(

@@ -41,6 +41,7 @@ import { execFile, spawn } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
+import { diagnoseWindowsToolchain } from './windows-toolchain.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -315,6 +316,14 @@ export interface ToolchainStatus {
   raw?: string;
   /** Set when UBT could not be run at all. */
   error?: string;
+  /**
+   * Compiler diagnosis, attached when the failure looks like the compiler
+   * the config asks for is not installed. UBT's own message names an enum
+   * value ("Requested value 'VisualStudio2019' was not found") without
+   * saying which config file supplied it or what is installed instead, so
+   * without this the operator has nothing to act on.
+   */
+  compiler?: import('./windows-toolchain.ts').ToolchainDiagnosis;
 }
 
 /**
@@ -480,10 +489,15 @@ export async function validateToolchain(
       ...{ raw: line.trim() },
     };
   } catch (error) {
-    return {
-      platform,
-      valid: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    const message = error instanceof Error ? error.message : String(error);
+    const status: ToolchainStatus = { platform, valid: false, error: message };
+
+    // "Requested value 'X' was not found" is UBT failing to parse a
+    // <Compiler> from BuildConfiguration.xml into its WindowsCompiler enum.
+    // Attaching the diagnosis turns that into "this file, these fixes".
+    if (/Requested value '[^']+' was not found/i.test(message)) {
+      status.compiler = diagnoseWindowsToolchain(engineRoot);
+    }
+    return status;
   }
 }
