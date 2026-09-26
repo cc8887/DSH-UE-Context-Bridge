@@ -1,0 +1,5 @@
+# Test scaffolding only; the artifact is copied in at build time from
+# dist-release/ so the image can never test a stale tarball by accident.
+ue-bridge-bundle-*.tgz
+negative/
+*.bak

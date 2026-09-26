@@ -1,0 +1,5 @@
+# Negative control image: same base, but runs the fail-detection script.
+FROM ue-bridge-install-test
+COPY negative.sh /work/negative.sh
+RUN chmod +x /work/negative.sh
+CMD ["/work/negative.sh"]
