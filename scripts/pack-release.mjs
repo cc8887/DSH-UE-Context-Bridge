@@ -23,7 +23,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, rmSync, readFileSync, writeFileSync, copyFileSync, cpSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, readFileSync, writeFileSync, copyFileSync, cpSync, existsSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = process.cwd();
@@ -40,9 +40,13 @@ execFileSync('node', ['scripts/build-plugin.mjs'], {
 rmSync(staging, { recursive: true, force: true });
 mkdirSync(staging, { recursive: true });
 
+// realpath: pnpm installs packages as junctions into .pnpm, and lstat reports a
+// junction as a non-directory, so cpSync would refuse it. Resolving first also
+// sidesteps EEXIST when the destination already holds a previous link.
 function copyDir(from, to) {
+  const src = realpathSync(from);
   mkdirSync(to, { recursive: true });
-  cpSync(from, to, { recursive: true });
+  cpSync(src, to, { recursive: true, dereference: true });
 }
 
 // Sibling layout, exactly as it will be installed: gateway/dist sits beside
@@ -77,13 +81,20 @@ stagePackage('dsh-plugin', './dist/index.js');
 stagePackage('contracts', './dist/index.js');
 stagePackage('gateway', './dist/main.js');
 
-// The gateway needs the MCP SDK at runtime; it is vendored so the install
-// never depends on the publishing machine's node_modules.
-const sdkSrc = join(root, 'node_modules', '@modelcontextprotocol', 'sdk');
-if (!existsSync(sdkSrc)) {
-  throw new Error(`MCP SDK not found at ${sdkSrc}; run an install at the repo root first`);
+// Runtime deps the compiled output actually imports, vendored so the install
+// never reaches for the network or the publishing machine's node_modules.
+// `get-port` matters most here: the plugin imports it, it was only ever a root
+// dependency, and without it a fresh install dies with ERR_MODULE_NOT_FOUND.
+const VENDOR = [
+  { from: join(root, 'node_modules', '@modelcontextprotocol', 'sdk'), to: ['@modelcontextprotocol', 'sdk'] },
+  { from: join(root, 'node_modules', 'get-port'), to: ['get-port'] },
+];
+for (const { from, to } of VENDOR) {
+  if (!existsSync(from)) {
+    throw new Error(`vendored dep not found at ${from}; run an install at the repo root first`);
+  }
+  copyDir(from, join(packagesDir, 'vendor', ...to));
 }
-copyDir(sdkSrc, join(packagesDir, 'vendor', '@modelcontextprotocol', 'sdk'));
 
 // The patch, shipped at the tarball root where dsh reads it.
 copyFileSync(join(root, 'packages', 'bundle', 'cordis.patch.yml'), join(staging, 'cordis.patch.yml'));
