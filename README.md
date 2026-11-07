@@ -109,11 +109,7 @@ reduced to a small canonical value carrying the byte count and a `result_id`;
 full content is read back through the artifact store with a cursor. That is real
 pagination rather than a text tail cut, and truncation is always reported.
 
-**Nothing is added to the UE side.** The upstream MCP plugin and the engine tree
-are treated as read-only. Python mode reaches the editor through the engine's
-own remote-execution protocol rather than by adding a plugin, so upgrading the
-engine or switching projects leaves no patch to re-apply and no forked plugin to
-maintain.
+**The engine tree and the upstream MCP plugin stay untouched.** An optional setup page can install [GeneralBlueprint](https://github.com/cc8887/GeneralBlueprint) into the project's `Plugins/` directory, and only after a click on that page. A launcher engine gets the matching Win64 release zip; a source engine gets the pinned git commit and a build run by that engine. Writing into `Engine/Plugins` is a separate confirmation and stops if the directory is not writable. The bridge does not patch `ModelContextProtocol` or any engine source. Python mode still uses the engine's remote-execution protocol. See [docs/plugin-setup.md](docs/plugin-setup.md).
 
 Each claim above is implemented somewhere specific, so it can be checked rather
 than taken on trust:
@@ -152,11 +148,12 @@ ue-project/            minimal UE project used to run the bridge
 
 ## Design constraints
 
-The UE side is never modified. The upstream MCP plugin and the engine tree are
-treated as read-only: Python mode reaches the editor through the engine's own
-remote-execution protocol rather than by adding a UE plugin. The deferred index
-is built from toolset descriptions because the top-level tool list only exposes
-meta-tools.
+The upstream MCP plugin and the engine tree are not patched. GeneralBlueprint
+is installed only through the setup page, into the project by default, after
+an explicit click. See [docs/plugin-setup.md](docs/plugin-setup.md). Python
+mode still reaches the editor through the engine's own remote-execution
+protocol. The deferred index is built from toolset descriptions because the
+top-level tool list only exposes meta-tools.
 
 Failures fail loudly. When a remote outcome cannot be confirmed, or a tool's
 effect class is unknown, the call is refused rather than answered from guesswork.
