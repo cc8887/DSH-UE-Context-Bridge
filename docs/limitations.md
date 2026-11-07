@@ -10,6 +10,7 @@ disclaimers to be dropped once things work.
 5. Trimming results locally does not reduce UE-side memory or transport cost.
 6. Only engine builds with a recorded contract and verified bindings are supported.
 7. Every budget, sample number, interface and effect threshold in this repository is a design parameter pending measurement.
+8. GeneralBlueprint setup installs only that plugin, only after a click, and only from the pinned GitHub repository. It does not modify `ModelContextProtocol` or engine source. A module BuildId match is the precompiled compatibility check; `Build.version` changelist numbers are not a substitute. Launcher and source installs do not fall through to each other.
 
 ## Threat model (v0.1)
 

@@ -83,6 +83,19 @@ refuses to strip TypeScript types for files under `node_modules`
 (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), which is where dsh installs
 profile plugins, so a TS entry would fail on every install.
 
+### 2c. GeneralBlueprint setup page
+
+The plugin serves a loopback page when it loads. That page is the install UI
+for [GeneralBlueprint](https://github.com/cc8887/GeneralBlueprint). Opening it
+does not download or compile; the install button does. DSH's browser slots are
+not used: a broken client plugin takes down the whole Web UI, and this package
+does not ship that client runtime. The URL is printed in the host log as
+`GeneralBlueprint setup UI:`.
+
+`pluginSetup: false` turns the page off. `pluginSetupAutoOpen: false` keeps
+the page available but does not open a browser window. Details and the release
+matrix are in [plugin-setup.md](plugin-setup.md).
+
 The patch carries **no absolute path**: `gatewayCwd` is resolved at runtime by
 `gateway-root.ts`, which finds the gateway by shape beside the plugin. Leave
 `gatewayCwd` unset unless you need to override that discovery.

@@ -63,7 +63,7 @@ node "<profile-dir>/node_modules/@ue-bridge/bundle/install.mjs" --profile ue-bri
 
 **大结果折叠，而不是灌进上下文。** 超预算的负载被收敛为携带字节数与 `result_id` 的小规范化值，完整内容通过 artifact store 用 cursor 读回。这是真正的分页而非截断文本尾巴，且截断状态始终上报。
 
-**UE 侧零新增。** 上游 MCP 插件与引擎目录视为只读。python 模式通过引擎自带的 remote-execution 协议抵达编辑器，而不是新增插件，因此升级引擎或切换项目时没有补丁需要重新应用、也没有需要维护的派生插件。
+**引擎树和上游 MCP 插件保持不动。** 可选的初始化页面能把 [GeneralBlueprint](https://github.com/cc8887/GeneralBlueprint) 装进项目的 `Plugins/`，而且只有在那个页面上点击之后才会下载或编译。公版引擎使用对应的 Win64 发布包；源码引擎拉取固定的 git 提交，并用那台引擎自己的构建脚本编译。写入 `Engine/Plugins` 需要另一次确认，目录不可写就停止。桥不会修改 `ModelContextProtocol` 或任何引擎源码。Python 模式仍然走引擎自带的 remote-execution。见 [docs/plugin-setup.md](docs/plugin-setup.md)。
 
 上述每条都能在具体文件中核对，而不是仅凭说明采信：
 
@@ -97,7 +97,7 @@ ue-project/            用于运行 bridge 的最小 UE 工程
 
 ## 设计约束
 
-不改动 UE 侧。上游 MCP 插件与引擎目录视为只读：python 模式通过引擎自带的 remote-execution 协议抵达编辑器，而不是新增 UE 插件。deferred 索引必须由 toolset 描述构建，因为顶层工具列表只暴露元工具。
+不修改上游 MCP 插件，也不改引擎源码。GeneralBlueprint 只通过初始化页面安装，默认进项目 `Plugins/`，并且要点击才会执行。见 [docs/plugin-setup.md](docs/plugin-setup.md)。python 模式通过引擎自带的 remote-execution 协议抵达编辑器。deferred 索引必须由 toolset 描述构建，因为顶层工具列表只暴露元工具。
 
 失败必须显式暴露。当远端结果无法确认、或工具的作用类别未知时，拒绝调用而不是凭猜测作答。
 

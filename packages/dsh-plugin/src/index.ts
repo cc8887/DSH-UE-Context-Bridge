@@ -21,6 +21,7 @@ import { resolveGatewayLocation } from './gateway-root.ts';
 import { runInvariants } from './invariants.ts';
 import { EditorSession } from './editor-lifecycle.ts';
 import { EngineSelectionStore } from './engine-selection.ts';
+import { defaultSetupPaths, startPluginSetup } from './plugin-setup/server.ts';
 
 export interface UeBridgeConfig {
   /** Preset name: "ue-deferred" or "ue-python". */
@@ -47,6 +48,13 @@ export interface UeBridgeConfig {
   engineRoot?: string;
   /** Build target, e.g. "UnrealEditor". */
   buildTarget?: string;
+  /**
+   * GeneralBlueprint setup page. On by default. Set false to skip the
+   * loopback UI. Opening that page does not install anything.
+   */
+  pluginSetup?: boolean;
+  /** Open the setup page when the plugin is missing or mismatched. */
+  pluginSetupAutoOpen?: boolean;
 }
 
 /** Services this plugin needs; cordis enforces these before apply() runs. */
@@ -142,6 +150,27 @@ export function apply(ctx: Context, config: UeBridgeConfig): () => void {
   // Lifecycle is mode-independent: both modes need a usable editor, and both
   // should see failures as values rather than process-management chores.
   if (editor) registerEditorTools(ctx, editor, selections);
+
+  // The setup page is a loopback UI, not a model tool. It starts with the
+  // plugin and only installs after a click on that page.
+  if (config.pluginSetup !== false) {
+    const paths = defaultSetupPaths(selections.file);
+    const setup = startPluginSetup({
+      ...paths,
+      ...(config.projectRoot ? { projectRoot: config.projectRoot } : {}),
+      ...(config.engineRoot ? { engineRoot: config.engineRoot } : {}),
+      autoOpen: config.pluginSetupAutoOpen !== false,
+      logger: conlog,
+    });
+    disposers.push(() => {
+      void setup.then((running) => running.close()).catch(() => undefined);
+    });
+    void setup
+      .then((running) => conlog(`GeneralBlueprint setup UI: ${running.url}`))
+      .catch((cause: unknown) => {
+        conlog(`GeneralBlueprint setup UI failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+      });
+  }
 
   if (preset.mode === 'deferred') {
     registerDeferredTools(ctx, preset, gateway, host, mcpUrl);
